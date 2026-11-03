@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AquaQuest: World Guardian</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.2/dist/confetti.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyberBg: '#030712',
+                        darkCard: 'rgba(17, 24, 39, 0.85)',
+                        darkBorder: '#1F2937',
+                        neonCyan: '#00E5FF',
+                        neonGreen: '#00FF66',
+                        cyberPurple: '#A855F7',
+                        cyberGold: '#FFD700',
+                        cyberRed: '#FF0055'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { touch-action: manipulation; }
+        body {
+            background-color: #020617;
+            color: #F8FAFC;
+            font-family: system-ui, -apple-system, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .glow-cyan { box-shadow: 0 0 20px rgba(0, 229, 255, 0.35); }
+        .glow-green { box-shadow: 0 0 20px rgba(0, 255, 102, 0.35); }
+        .glow-purple { box-shadow: 0 0 20px rgba(168, 85, 247, 0.35); }
+        .glow-gold { box-shadow: 0 0 20px rgba(255, 215, 0, 0.35); }
+        .glow-red { box-shadow: 0 0 20px rgba(255, 0, 85, 0.4); }
+
+        .text-glow-cyan { text-shadow: 0 0 10px rgba(0, 229, 255, 0.7); }
+        .text-glow-green { text-shadow: 0 0 10px rgba(0, 255, 102, 0.7); }
+
+        /* Scanner line animation */
+        .scan-line {
+            background: linear-gradient(to bottom, transparent, rgba(0, 229, 255, 0.85), transparent);
+            animation: scan 1.8s infinite linear;
+        }
+        @keyframes scan {
+            0% { top: 0%; }
+            50% { top: 88%; }
+            100% { top: 0%; }
+        }
+
+        /* Boss HP Bar animation */
+        .boss-hp-bar {
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Mobile Device Frame styling */
+        .mobile-frame {
+            max-width: 440px;
+            height: 900px;
+            box-shadow: 0 0 50px rgba(0, 229, 255, 0.15), 0 0 0 12px #111827;
+        }
+
+        @media (max-width: 640px) {
+            .mobile-frame {
+                max-width: 100%;
+                height: 100vh;
+                border-radius: 0;
+                box-shadow: none;
+            }
+        }
+
+        /* Floating Damage text */
+        .damage-pop {
+            animation: popUp 0.8s ease-out forwards;
+        }
+        @keyframes popUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            50% { opacity: 1; transform: translateY(-25px) scale(1.3); }
+            100% { opacity: 0; transform: translateY(-45px) scale(1); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-0 sm:p-4 bg-slate-950">
+
+    <!-- Main Mobile Device Simulator Container -->
+    <div class="mobile-frame w-full bg-cyberBg sm:rounded-[44px] flex flex-col relative overflow-hidden border border-slate-800">
+        
+        <!-- Top Status HUD -->
+        <header class="bg-slate-900/90 backdrop-blur-md px-4 pt-4 pb-3 border-b border-slate-800/80 z-30">
+            <div class="flex justify-between items-center mb-2">
+                <!-- User Profile & Level Badge -->
+                <div class="flex items-center space-x-2.5">
+                    <div class="relative cursor-pointer" onclick="triggerLevelUpModal()">
+                        <div class="w-11 h-11 rounded-full bg-gradient-to-tr from-cyan-500 via-blue-600 to-purple-600 flex items-center justify-center font-extrabold text-white text-base border-2 border-neonCyan glow-cyan">
+                            <span id="playerAvatar">🌊</span>
+                        </div>
+                        <span id="playerLevelBadge" class="absolute -bottom-1 -right-1 bg-cyberGold text-slate-950 text-[10px] font-black px-1.5 py-0.2 rounded-full border border-black shadow">
+                            Lv.1
+                        </span>
+                    </div>
+                    <div>
+                        <div class="flex items-center space-x-1.5">
+                            <h2 id="playerName" class="font-extrabold text-xs text-white tracking-wide">Hydro Guardian</h2>
+                            <button onclick="toggleAudio()" id="soundBtn" class="text-xs text-slate-400 hover:text-neonCyan ml-1">
+                                <i class="fa-solid fa-volume-high text-neonCyan"></i>
+                            </button>
+                        </div>
+                        <p id="playerTitle" class="text-[10px] text-neonCyan font-bold tracking-wider">ECO WARRIOR</p>
+                    </div>
+                </div>
+
+                <!-- Currencies & Stats -->
+                <div class="flex items-center space-x-2">
+                    <div class="bg-slate-950/80 border border-amber-500/30 px-2.5 py-1 rounded-full flex items-center space-x-1.5 glow-gold">
+                        <i class="fa-solid fa-coins text-cyberGold text-xs"></i>
+                        <span id="coinCount" class="text-xs font-black text-amber-300">150</span>
+                    </div>
+                    <div class="bg-slate-950/80 border border-cyan-500/30 px-2.5 py-1 rounded-full flex items-center space-x-1.5 glow-cyan">
+                        <i class="fa-solid fa-droplet text-neonCyan text-xs"></i>
+                        <span id="totalSavedLiters" class="text-xs font-black text-neonCyan">0L</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- XP Progress Bar -->
+            <div class="space-y-1">
+                <div class="flex justify-between text-[10px] text-slate-400 font-bold">
+                    <span>Guardian XP</span>
+                    <span id="xpText" class="text-neonGreen">0 / 200 XP</span>
+                </div>
+                <div class="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                    <div id="xpBar" class="h-full bg-gradient-to-r from-neonCyan via-neonGreen to-cyberGold transition-all duration-300 rounded-full" style="width: 0%;"></div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Dynamic Main Scrollable Views -->
+        <main id="appMainContent" class="flex-1 overflow-y-auto relative p-4 space-y-4 pb-20">
+
+            <!-- TAB 1: VIRTUAL SANCTUARY (ISLAND MINI-GAME) -->
+            <section id="tab-sanctuary" class="tab-page space-y-4">
+                
+                <div class="bg-darkCard border border-darkBorder rounded-2xl p-4 relative overflow-hidden">
+                    <div class="flex justify-between items-center mb-2">
+                        <div>
+                            <h3 class="text-sm font-extrabold text-white flex items-center gap-1.5">
+                                <i class="fa-solid fa-earth-americas text-neonGreen"></i>
+                                Aqua Oasis Sanctuary
+                            </h3>
+                            <p class="text-[11px] text-slate-400">Save water to nurture your paradise & eco-pet!</p>
+                        </div>
+                        <span id="sanctuaryStatus" class="text-[10px] bg-emerald-950/90 border border-emerald-500/50 text-neonGreen px-2.5 py-1 rounded-full font-bold shadow">
+                            🌿 Lush Oasis (100%)
+                        </span>
+                    </div>
+
+                    <!-- Canvas Game View -->
+                    <div class="relative w-full h-60 bg-slate-950 rounded-xl overflow-hidden border border-slate-800 my-2 cursor-pointer" onclick="canvasTapInteract(event)">
+                        <canvas id="sanctuaryCanvas" class="w-full h-full block"></canvas>
+                        
+                        <!-- Overlay Touch Actions -->
+                        <div class="absolute bottom-2 left-2 right-2 flex justify-between items-center z-10">
+                            <button onclick="interactSanctuary('water', event)" class="bg-cyan-950/90 border border-neonCyan/60 hover:bg-cyan-900 text-neonCyan px-3 py-1.5 rounded-xl text-xs font-bold flex items-center space-x-1.5 backdrop-blur-md active:scale-95 transition shadow-lg">
+                                <i class="fa-solid fa-cloud-showers-heavy"></i>
+                                <span>Rain Drop (+15L)</span>
+                            </button>
+                            <button onclick="interactSanctuary('tree', event)" class="bg-emerald-950/90 border border-neonGreen/60 hover:bg-emerald-900 text-neonGreen px-3 py-1.5 rounded-lg text-xs font-bold flex items-center space-x-1.5 backdrop-blur-md active:scale-95 transition shadow-lg">
+                                <i class="fa-solid fa-seedling"></i>
+                                <span>Plant Tree (40 C)</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Sanctuary Upgrades Summary -->
+                    <div class="grid grid-cols-3 gap-2 text-center mt-3">
+                        <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-800">
+                            <span class="text-[10px] text-slate-400 block">Aquafox Pet</span>
+                            <span id="petState" class="text-xs font-bold text-neonCyan">Happy 🦊</span>
+                        </div>
+                        <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-800">
+                            <span class="text-[10px] text-slate-400 block">Trees Grown</span>
+                            <span id="treeCount" class="text-xs font-bold text-neonGreen">8 Trees</span>
+                        </div>
+                        <div class="bg-slate-900/80 p-2 rounded-xl border border-slate-800">
+                            <span class="text-[10px] text-slate-400 block">Eco Purity</span>
+                            <span id="purityVal" class="text-xs font-bold text-cyberGold">98% Clean</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Daily Water Counter Card -->
+                <div class="bg-darkCard border border-darkBorder rounded-2xl p-4 flex items-center justify-between">
+                    <div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Today's Water Footprint</span>
+                        <div class="flex items-baseline space-x-1.5 mt-0.5">
+                            <span id="todayUsed" class="text-2xl font-black text-white">40</span>
+                            <span class="text-xs text-slate-400 font-bold">/ 110 Liters Cap</span>
+                        </div>
+                    </div>
+                    <button onclick="openLogModal()" class="bg-gradient-to-r from-neonCyan to-neonGreen text-slate-950 text-xs font-black px-4 py-2.5 rounded-xl shadow-lg glow-cyan active:scale-95 transition">
+                        <i class="fa-solid fa-plus mr-1"></i> Log Usage
+                    </button>
+                </div>
+
+            </section>
+
+            <!-- TAB 2: BOSS BATTLE & QUESTS -->
+            <section id="tab-quests" class="tab-page hidden space-y-4">
+                
+                <!-- Boss Battle Card -->
+                <div class="bg-gradient-to-b from-red-950/80 via-darkCard to-darkCard border border-red-500/40 rounded-2xl p-4 relative overflow-hidden glow-red">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <span class="bg-red-500/20 text-cyberRed border border-red-500/50 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                                ⚔️ WORLD BOSS EVENT
+                            </span>
+                            <h3 class="text-base font-black text-white mt-1">Lord Drought Demon</h3>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-[10px] text-slate-400 block">Global Raid</span>
+                            <span class="text-xs font-mono font-bold text-amber-400">Phase 1</span>
+                        </div>
+                    </div>
+
+                    <!-- Boss Health HUD -->
+                    <div class="flex items-center space-x-3 my-3">
+                        <div class="w-16 h-16 rounded-2xl bg-slate-950 border-2 border-red-500/60 flex items-center justify-center text-3xl shadow-lg relative">
+                            👹
+                            <div id="damagePopContainer" class="absolute inset-0 pointer-events-none flex items-center justify-center"></div>
+                        </div>
+                        <div class="flex-1 space-y-1">
+                            <div class="flex justify-between text-xs font-bold">
+                                <span class="text-slate-300">Demon HP</span>
+                                <span id="bossHpText" class="text-cyberRed font-mono">1000 / 1000 HP</span>
+                            </div>
+                            <div class="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                                <div id="bossHpBar" class="h-full bg-gradient-to-r from-amber-500 to-cyberRed boss-hp-bar rounded-full" style="width: 100%;"></div>
+                            </div>
+                            <p class="text-[10px] text-slate-400">Complete quests to strike slash damage!</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Daily RPG Quests -->
+                <div class="space-y-2.5">
+                    <h4 class="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Conservation Quests</h4>
+                    <div id="questList" class="space-y-2.5">
+                        <!-- Rendered by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: AI CAMERA LEAK SCANNER -->
+            <section id="tab-scanner" class="tab-page hidden space-y-4">
+                <div class="bg-darkCard border border-darkBorder rounded-2xl p-4 space-y-3">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h3 class="text-sm font-extrabold text-white flex items-center gap-1.5">
+                                <i class="fa-solid fa-camera-retro text-neonCyan"></i>
+                                AI Vision Meter &amp; Leak Detector
+                            </h3>
+                            <p class="text-[11px] text-slate-400">Live feed scan for meter readings &amp; pipe drips</p>
+                        </div>
+                    </div>
+
+                    <!-- Camera Stream/Simulation Container -->
+                    <div class="relative w-full h-64 bg-slate-950 rounded-xl overflow-hidden border border-cyan-500/40 flex flex-col items-center justify-center">
+                        <!-- Real Camera Video Element -->
+                        <video id="cameraVideo" class="absolute inset-0 w-full h-full object-cover hidden" autoplay playsinline muted></video>
+
+                        <!-- Simulated Camera Background Pattern -->
+                        <div id="simulatedCameraBg" class="absolute inset-0 bg-gradient-to-tr from-slate-950 via-slate-900 to-cyan-950 flex flex-col items-center justify-center opacity-90">
+                            <i class="fa-solid fa-gauge-high text-6xl text-cyan-500/20"></i>
+                        </div>
+
+                        <!-- Animated Scan HUD Overlay -->
+                        <div id="scannerOverlay" class="absolute inset-0 scan-line hidden pointer-events-none"></div>
+
+                        <!-- Target Bounding Box -->
+                        <div class="w-44 h-44 border-2 border-dashed border-neonCyan/70 rounded-2xl flex items-center justify-center relative z-10 pointer-events-none">
+                            <div class="w-3 h-3 bg-neonGreen rounded-full animate-ping"></div>
+                            <div class="absolute -top-3 text-[9px] font-mono font-bold text-neonCyan bg-slate-950 px-2 py-0.5 border border-cyan-500/40 rounded">AI VISION ACTIVE</div>
+                        </div>
+
+                        <!-- Status Message -->
+                        <div id="scanStatus" class="mt-4 text-xs font-mono text-slate-300 text-center px-4 z-10 bg-slate-950/80 py-1 rounded-full border border-slate-800">
+                            Align camera with pipe tap or water meter
+                        </div>
+
+                        <!-- Scan Trigger Buttons -->
+                        <div class="absolute bottom-3 flex space-x-2 z-20">
+                            <button onclick="toggleRealCamera()" id="camToggleBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition">
+                                <i class="fa-solid fa-video mr-1"></i> Live Cam
+                            </button>
+                            <button onclick="runAiVisionScan()" id="scanBtn" class="bg-gradient-to-r from-neonCyan to-blue-600 text-slate-950 text-xs font-black px-4 py-1.5 rounded-xl glow-cyan active:scale-95 transition">
+                                <i class="fa-solid fa-bolt mr-1"></i> Scan Target (+80 XP)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- AI Diagnostic Output Report -->
+                    <div id="scanResult" class="hidden bg-slate-900 border border-slate-800 p-3 rounded-xl space-y-2">
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="font-bold text-white flex items-center gap-1.5">
+                                <i class="fa-solid fa-circle-check text-neonGreen"></i> Meter Reading: 0284.5 m³
+                            </span>
+                            <span class="text-neonCyan font-bold">+80 XP | +50 C</span>
+                        </div>
+                        <p class="text-[11px] text-slate-300">Diagnostic: Flow rate normal (0.0 L/min). No micro-leaks detected in valve assembly.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: SMART WATER AUDIT & RAIN CALCULATOR -->
+            <section id="tab-audit" class="tab-page hidden space-y-4">
+                
+                <!-- Household Audit Calculator -->
+                <div class="bg-darkCard border border-darkBorder rounded-2xl p-4 space-y-4">
+                    <div>
+                        <h3 class="text-sm font-extrabold text-white flex items-center gap-1.5">
+                            <i class="fa-solid fa-sliders text-cyberPurple"></i>
+                            Smart Water Footprint Audit
+                        </h3>
+                        <p class="text-[11px] text-slate-400">Adjust parameters to compute monthly water bill savings</p>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">Shower Duration</span>
+                                <span id="showerVal" class="text-neonCyan font-bold">8 Mins</span>
+                            </div>
+                            <input type="range" id="showerRange" min="3" max="25" value="8" oninput="calculateAuditEngine()" class="w-full accent-cyan-400 bg-slate-800 rounded-lg">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">Tap Duration (Utensils &amp; Wash)</span>
+                                <span id="tapVal" class="text-neonGreen font-bold">12 Mins</span>
+                            </div>
+                            <input type="range" id="tapRange" min="2" max="35" value="12" oninput="calculateAuditEngine()" class="w-full accent-emerald-400 bg-slate-800 rounded-lg">
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-slate-300">Rooftop Catchment Area (Sq. Ft)</span>
+                                <span id="roofVal" class="text-cyberGold font-bold">1200 Sq Ft</span>
+                            </div>
+                            <input type="range" id="roofRange" min="300" max="4000" step="100" value="1200" oninput="calculateAuditEngine()" class="w-full accent-amber-400 bg-slate-800 rounded-lg">
+                        </div>
+                    </div>
+
+                    <!-- Calculated Savings Result -->
+                    <div class="bg-slate-900 border border-purple-500/40 p-3 rounded-xl space-y-2 glow-purple">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <span class="text-[10px] text-slate-400 block">Est. Monthly Bill Savings</span>
+                                <span id="billSavedText" class="text-xl font-black text-neonGreen">₹ 650 / month</span>
+                            </div>
+                            <div>
+                                <span class="text-[10px] text-slate-400 block">Annual Rain Harvest</span>
+                                <span id="rainHarvestText" class="text-sm font-black text-neonCyan">18,000 Liters</span>
+                            </div>
+                        </div>
+                        <button onclick="claimAuditReward()" class="w-full bg-cyberPurple hover:bg-purple-600 text-white text-xs font-bold py-2 rounded-lg transition active:scale-95 shadow">
+                            Claim Eco-Audit Reward (+50 XP)
+                        </button>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- TAB 5: LEADERBOARD & ECO-BADGES -->
+            <section id="tab-leaderboard" class="tab-page hidden space-y-4">
+                
+                <div class="bg-darkCard border border-darkBorder rounded-2xl p-4 space-y-3">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-sm font-extrabold text-white flex items-center gap-1.5">
+                            <i class="fa-solid fa-trophy text-cyberGold"></i>
+                            Global Eco Leaderboard
+                        </h3>
+                        <span class="text-[10px] text-neonGreen font-bold bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">Season 1</span>
+                    </div>
+
+                    <div class="space-y-2">
+                        <!-- Rank 1 -->
+                        <div class="bg-slate-900 border border-amber-500/40 p-2.5 rounded-xl flex items-center justify-between glow-gold">
+                            <div class="flex items-center space-x-2.5">
+                                <span class="font-black text-amber-400 text-sm">#1</span>
+                                <div class="w-8 h-8 rounded-full bg-slate-800 border border-amber-400 flex items-center justify-center text-xs">🥷</div>
+                                <div>
+                                    <div class="text-xs font-bold text-white">Aqua Master</div>
+                                    <div class="text-[9px] text-slate-400">Level 9 • Titan</div>
+                                </div>
+                            </div>
+                            <span class="text-xs font-black text-cyberGold">1,850 L Saved</span>
+                        </div>
+
+                        <!-- Rank 2 -->
+                        <div class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl flex items-center justify-between">
+                            <div class="flex items-center space-x-2.5">
+                                <span class="font-black text-slate-300 text-sm">#2</span>
+                                <div class="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs">🧜‍♀️</div>
+                                <div>
+                                    <div class="text-xs font-bold text-white">Rain Sentinel</div>
+                                    <div class="text-[9px] text-slate-400">Level 7 • Knight</div>
+                                </div>
+                            </div>
+                            <span class="text-xs font-black text-neonCyan">1,240 L Saved</span>
+                        </div>
+
+                        <!-- Player Rank -->
+                        <div class="bg-cyan-950/60 border border-neonCyan/50 p-2.5 rounded-xl flex items-center justify-between glow-cyan">
+                            <div class="flex items-center space-x-2.5">
+                                <span class="font-black text-neonCyan text-sm">#3</span>
+                                <div class="w-8 h-8 rounded-full bg-slate-800 border border-neonCyan flex items-center justify-center text-xs">🌊</div>
+                                <div>
+                                    <div class="text-xs font-bold text-white">You (Hydro Guardian)</div>
+                                    <div class="text-[9px] text-slate-400">Active Champion</div>
+                                </div>
+                            </div>
+                            <span id="rankSavedText" class="text-xs font-black text-neonGreen">0 L Saved</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Achievements & Badges -->
+                <div class="bg-darkCard border border-darkBorder rounded-2xl p-4 space-y-3">
+                    <h3 class="text-sm font-extrabold text-white flex items-center gap-1.5">
+                        <i class="fa-solid fa-award text-neonCyan"></i>
+                        Unlockable Eco Badges
+                    </h3>
+
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <div class="bg-slate-900 p-3 rounded-xl border border-emerald-500/30 text-center">
+                            <div class="text-2xl mb-1">🚿</div>
+                            <div class="text-xs font-bold text-white">Bucket Bath Master</div>
+                            <div class="text-[9px] text-neonGreen mt-0.5 font-bold">UNLOCKED</div>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-xl border border-cyan-500/30 text-center">
+                            <div class="text-2xl mb-1">🔍</div>
+                            <div class="text-xs font-bold text-white">Leak Hunter</div>
+                            <div class="text-[9px] text-neonCyan mt-0.5 font-bold">UNLOCKED</div>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-xl border border-amber-500/30 text-center">
+                            <div class="text-2xl mb-1">🌧️</div>
+                            <div class="text-xs font-bold text-white">Harvest Hero</div>
+                            <div class="text-[9px] text-cyberGold mt-0.5 font-bold">UNLOCKED</div>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-xl border border-slate-800 text-center opacity-40">
+                            <div class="text-2xl mb-1">👑</div>
+                            <div class="text-xs font-bold text-slate-400">World Guardian</div>
+                            <div class="text-[9px] text-slate-500 mt-0.5">LOCKED (Level 5)</div>
+                        </div>
+                    </div>
+                </div>
+
+            </section>
+
+        </main>
+
+        <!-- Fixed Navigation Bar -->
+        <nav class="absolute bottom-0 left-0 right-0 h-16 bg-slate-900/95 backdrop-blur-md border-t border-slate-800/80 flex justify-around items-center px-2 z-40">
+            <button onclick="switchTab('sanctuary')" id="nav-sanctuary" class="nav-btn flex flex-col items-center space-y-1 text-neonCyan">
+                <i class="fa-solid fa-earth-americas text-base"></i>
+                <span class="text-[10px] font-bold">Oasis</span>
+            </button>
+            <button onclick="switchTab('quests')" id="nav-quests" class="nav-btn flex flex-col items-center space-y-1 text-slate-500 hover:text-white">
+                <i class="fa-solid fa-shield-halved text-base"></i>
+                <span class="text-[10px] font-bold">Quests</span>
+            </button>
+            <button onclick="switchTab('scanner')" id="nav-scanner" class="nav-btn flex flex-col items-center space-y-1 text-slate-500 hover:text-white">
+                <i class="fa-solid fa-qrcode text-base"></i>
+                <span class="text-[10px] font-bold">AI Scan</span>
+            </button>
+            <button onclick="switchTab('audit')" id="nav-audit" class="nav-btn flex flex-col items-center space-y-1 text-slate-500 hover:text-white">
+                <i class="fa-solid fa-calculator text-base"></i>
+                <span class="text-[10px] font-bold">Audit</span>
+            </button>
+            <button onclick="switchTab('leaderboard')" id="nav-leaderboard" class="nav-btn flex flex-col items-center space-y-1 text-slate-500 hover:text-white">
+                <i class="fa-solid fa-trophy text-base"></i>
+                <span class="text-[10px] font-bold">Ranks</span>
+            </button>
+        </nav>
+
+        <!-- Log Water Modal -->
+        <div id="logModal" class="hidden absolute inset-0 bg-slate-950/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-darkCard border border-darkBorder w-full rounded-2xl p-4 space-y-3">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-sm font-bold text-white">Log Today's Water Action</h3>
+                    <button onclick="closeLogModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="space-y-2">
+                    <button onclick="addWaterUsage(15, 'Bucket Bath')" class="w-full bg-slate-900 border border-slate-800 p-3 rounded-xl flex justify-between items-center text-xs text-white hover:border-neonCyan transition">
+                        <span>🚿 Bucket Bath vs Shower</span>
+                        <span class="text-neonCyan font-bold">Saved 15 L</span>
+                    </button>
+                    <button onclick="addWaterUsage(25, 'Full Load Washing')" class="w-full bg-slate-900 border border-slate-800 p-3 rounded-xl flex justify-between items-center text-xs text-white hover:border-neonGreen transition">
+                        <span>🧺 Eco Washing Cycle</span>
+                        <span class="text-neonGreen font-bold">Saved 25 L</span>
+                    </button>
+                    <button onclick="addWaterUsage(10, 'RO Wastewater Mopping')" class="w-full bg-slate-900 border border-slate-800 p-3 rounded-xl flex justify-between items-center text-xs text-white hover:border-cyberPurple transition">
+                        <span>♻️ Reused RO Wastewater</span>
+                        <span class="text-cyberPurple font-bold">Saved 10 L</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Level Up Modal -->
+        <div id="levelModal" class="hidden absolute inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div class="bg-darkCard border border-cyberGold/50 w-full rounded-3xl p-6 text-center space-y-4 glow-gold relative overflow-hidden">
+                <div class="text-5xl animate-bounce">🏆</div>
+                <h3 class="text-xl font-black text-white">LEVEL UP REACHED!</h3>
+                <p id="levelModalDesc" class="text-xs text-slate-300">You are now Level 2 Hydro Guardian. You unlocked new Oasis Sanctuary perks!</p>
+                <button onclick="closeLevelModal()" class="w-full bg-gradient-to-r from-amber-400 to-cyberGold text-slate-950 text-xs font-black py-3 rounded-xl shadow-lg glow-gold active:scale-95 transition">
+                    CLAIM GUARDIAN REWARDS
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Application Engine Logic -->
+    <script>
+        // --- Game State Persistence ---
+        const DEFAULT_STATE = {
+            level: 1,
+            xp: 0,
+            maxXp: 200,
+            coins: 150,
+            savedLiters: 45,
+            todayUsed: 40,
+            soundEnabled: true,
+            bossHp: 1000,
+            maxBossHp: 1000,
+            trees: 8,
+            purity: 98
+        };
+
+        let gameState = JSON.parse(localStorage.getItem('aquaquest_state')) || { ...DEFAULT_STATE };
+
+        function saveState() {
+            localStorage.setItem('aquaquest_state', JSON.stringify(gameState));
+        }
+
+        const quests = [
+            { id: 1, title: 'Bucket Bath Challenge', desc: 'Save ~20L by avoiding overhead shower', rewardXp: 60, rewardCoins: 40, damage: 150, done: false },
+            { id: 2, title: 'AI Pipe Scan & Fix', desc: 'Scan water meter or pipe tap for drips', rewardXp: 80, rewardCoins: 60, damage: 200, done: false },
+            { id: 3, title: 'RO Greywater Recycling', desc: 'Reuse discharge water for mopping or plants', rewardXp: 50, rewardCoins: 30, damage: 100, done: false }
+        ];
+
+        // --- Web Audio Synthesizer ---
+        let audioCtx;
+        function playAudio(type) {
+            if (!gameState.soundEnabled) return;
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                const now = audioCtx.currentTime;
+                if (type === 'click') {
+                    osc.frequency.setValueAtTime(440, now);
+                    gain.gain.setValueAtTime(0.04, now);
+                    osc.start(now);
+                    osc.stop(now + 0.05);
+                } else if (type === 'success') {
+                    osc.frequency.setValueAtTime(523.25, now);
+                    osc.frequency.setValueAtTime(659.25, now + 0.08);
+                    gain.gain.setValueAtTime(0.07, now);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                } else if (type === 'attack') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.exponentialRampToValueAtTime(80, now + 0.15);
+                    gain.gain.setValueAtTime(0.08, now);
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                }
+            } catch(e) {}
+        }
+
+        function toggleAudio() {
+            gameState.soundEnabled = !gameState.soundEnabled;
+            saveState();
+            document.getElementById('soundBtn').innerHTML = gameState.soundEnabled ? 
+                '<i class="fa-solid fa-volume-high text-neonCyan"></i>' : 
+                '<i class="fa-solid fa-volume-xmark text-slate-500"></i>';
+        }
+
+        // --- Tab Switching ---
+        function switchTab(tabId) {
+            playAudio('click');
+            document.querySelectorAll('.tab-page').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('text-neonCyan');
+                btn.classList.add('text-slate-500');
+            });
+            document.getElementById(`nav-${tabId}`).classList.remove('text-slate-500');
+            document.getElementById(`nav-${tabId}`).classList.add('text-neonCyan');
+
+            if (tabId === 'sanctuary') initCanvas();
+        }
+
+        // --- Interactive HTML5 Canvas Sanctuary Engine ---
+        let canvas, ctx;
+        let particles = [];
+        let petX = 140, petY = 120, petTargetX = 140;
+
+        function initCanvas() {
+            canvas = document.getElementById('sanctuaryCanvas');
+            if (!canvas) return;
+            ctx = canvas.getContext('2d');
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+
+            // Init water particles
+            particles = [];
+            for (let i = 0; i < 25; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    radius: Math.random() * 2.5 + 1,
+                    speedY: Math.random() * 0.8 + 0.2,
+                    alpha: Math.random() * 0.5 + 0.3
+                });
+            }
+        }
+
+        function renderCanvas() {
+            if (!ctx || !canvas) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Sky Background
+            let skyGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            skyGrad.addColorStop(0, '#030712');
+            skyGrad.addColorStop(1, '#0B192C');
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Floating Water Particles
+            particles.forEach(p => {
+                p.y -= p.speedY;
+                if (p.y < 0) p.y = canvas.height;
+                ctx.fillStyle = `rgba(0, 229, 255, ${p.alpha})`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Island Water Lagoon Ring
+            ctx.fillStyle = 'rgba(0, 229, 255, 0.25)';
+            ctx.beginPath();
+            ctx.arc(canvas.width / 2, canvas.height / 2 + 25, 115, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Lush Floating Island Base
+            ctx.fillStyle = '#044E35';
+            ctx.beginPath();
+            ctx.ellipse(canvas.width / 2, canvas.height / 2 + 20, 95, 48, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Island Grass Top
+            ctx.fillStyle = '#059669';
+            ctx.beginPath();
+            ctx.ellipse(canvas.width / 2, canvas.height / 2 + 15, 90, 42, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Render Trees
+            ctx.fillStyle = '#10B981';
+            for (let i = 0; i < Math.min(gameState.trees, 10); i++) {
+                let tx = canvas.width / 2 - 60 + (i * 13);
+                let ty = canvas.height / 2 - 5;
+                ctx.beginPath();
+                ctx.arc(tx, ty, 8, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Aquafox Eco Pet Animation
+            petX += (petTargetX - petX) * 0.05;
+            ctx.fillStyle = '#00E5FF';
+            ctx.beginPath();
+            ctx.arc(petX, petY, 9, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.font = '12px sans-serif';
+            ctx.fillText('🦊', petX - 7, petY + 4);
+
+            requestAnimationFrame(renderCanvas);
+        }
+
+        function canvasTapInteract(e) {
+            playAudio('click');
+            const rect = canvas.getBoundingClientRect();
+            petTargetX = e.clientX - rect.left;
+        }
+
+        function interactSanctuary(action, e) {
+            e.stopPropagation();
+            playAudio('success');
+            if (action === 'water') {
+                gameState.savedLiters += 15;
+                addXP(25);
+                confetti({ particleCount: 25, spread: 40, origin: { y: 0.6 } });
+            } else if (action === 'tree') {
+                if (gameState.coins >= 40) {
+                    gameState.coins -= 40;
+                    gameState.trees++;
+                    addXP(40);
+                    confetti({ particleCount: 35, spread: 50, origin: { y: 0.6 } });
+                }
+            }
+            saveState();
+            updateStatsUI();
+        }
+
+        // --- RPG Boss & Quests Engine ---
+        function renderQuests() {
+            const container = document.getElementById('questList');
+            container.innerHTML = quests.map(q => `
+                <div class="bg-slate-900 border ${q.done ? 'border-emerald-500/40 opacity-70' : 'border-slate-800'} p-3 rounded-xl flex items-center justify-between">
+                    <div>
+                        <div class="text-xs font-bold ${q.done ? 'line-through text-slate-400' : 'text-white'}">${q.title}</div>
+                        <div class="text-[10px] text-slate-400">${q.desc}</div>
+                        <div class="flex items-center space-x-2 gap-2 mt-1">
+                            <span class="text-[9px] text-neonCyan font-bold">+${q.rewardXp} XP</span>
+                            <span class="text-[9px] text-amber-300 font-bold">+${q.rewardCoins} Coins</span>
+                            <span class="text-[9px] text-cyberRed font-bold">-${q.damage} HP</span>
+                        </div>
+                    </div>
+                    <button onclick="completeQuest(${q.id})" ${q.done ? 'disabled' : ''} class="${q.done ? 'bg-slate-800 text-slate-500' : 'bg-gradient-to-r from-neonCyan to-neonGreen text-slate-950 glow-cyan'} text-xs font-extrabold px-3.5 py-1.5 rounded-lg transition active:scale-95">
+                        ${q.done ? 'Completed' : 'Attack'}
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function completeQuest(id) {
+            const q = quests.find(x => x.id === id);
+            if (q && !q.done) {
+                q.done = true;
+                gameState.coins += q.rewardCoins;
+                gameState.bossHp = Math.max(0, gameState.bossHp - q.damage);
+                addXP(q.rewardXp);
+                playAudio('attack');
+                
+                // Damage Pop Text
+                const pop = document.createElement('div');
+                pop.className = 'damage-pop absolute text-cyberRed font-black text-sm z-30';
+                pop.innerText = `-${q.damage} HP`;
+                document.getElementById('damagePopContainer').appendChild(pop);
+                setTimeout(() => pop.remove(), 800);
+
+                confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+                renderQuests();
+                saveState();
+                updateStatsUI();
+            }
+        }
+
+        // --- AI Camera Vision Simulator ---
+        let cameraStream = null;
+        async function toggleRealCamera() {
+            const video = document.getElementById('cameraVideo');
+            const bg = document.getElementById('simulatedCameraBg');
+            
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(t => t.stop());
+                cameraStream = null;
+                video.classList.add('hidden');
+                bg.classList.remove('hidden');
+                document.getElementById('camToggleBtn').innerHTML = '<i class="fa-solid fa-video mr-1"></i> Live Cam';
+            } else {
+                try {
+                    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    video.srcObject = cameraStream;
+                    video.classList.remove('hidden');
+                    bg.classList.add('hidden');
+                    document.getElementById('camToggleBtn').innerHTML = '<i class="fa-solid fa-video-slash mr-1"></i> Stop Cam';
+                } catch(e) {
+                    alert("Camera access unavailable. Using simulated vision feed.");
+                }
+            }
+        }
+
+        function runAiVisionScan() {
+            playAudio('click');
+            document.getElementById('scannerOverlay').classList.remove('hidden');
+            document.getElementById('scanStatus').innerText = "AI neural network detecting meter & pipe drips...";
+
+            setTimeout(() => {
+                document.getElementById('scannerOverlay').classList.add('hidden');
+                document.getElementById('scanResult').classList.remove('hidden');
+                document.getElementById('scanStatus').innerText = "Target Locked & Analyzed!";
+                addXP(80);
+                gameState.coins += 50;
+                playAudio('success');
+                confetti({ particleCount: 50, spread: 60, origin: { y: 0.5 } });
+                saveState();
+                updateStatsUI();
+            }, 1800);
+        }
+
+        // --- Audit Engine Calculation ---
+        function calculateAuditEngine() {
+            const shower = parseInt(document.getElementById('showerRange').value);
+            const tap = parseInt(document.getElementById('tapRange').value);
+            const roof = parseInt(document.getElementById('roofRange').value);
+
+            document.getElementById('showerVal').innerText = `${shower} Mins`;
+            document.getElementById('tapVal').innerText = `${tap} Mins`;
+            document.getElementById('roofVal').innerText = `${roof} Sq Ft`;
+
+            // Formulas: Rain harvest = Area * Rainfall (mm approx 600) * 0.6
+            const annualHarvest = Math.round(roof * 15);
+            const monthlyBillSaved = Math.round(((20 - shower) * 12 + (30 - tap) * 8) * 4);
+
+            document.getElementById('billSavedText').innerText = `₹ ${Math.max(200, monthlyBillSaved)} / month`;
+            document.getElementById('rainHarvestText').innerText = `${annualHarvest.toLocaleString()} Liters`;
+        }
+
+        function claimAuditReward() {
+            playAudio('success');
+            addXP(50);
+            gameState.coins += 40;
+            confetti({ particleCount: 40, spread: 50 });
+            saveState();
+            updateStatsUI();
+        }
+
+        // --- Log Water Modal ---
+        function openLogModal() { playAudio('click'); document.getElementById('logModal').classList.remove('hidden'); }
+        function closeLogModal() { document.getElementById('logModal').classList.add('hidden'); }
+
+        function addWaterUsage(savedLiters, name) {
+            gameState.savedLiters += savedLiters;
+            gameState.todayUsed = Math.max(0, gameState.todayUsed - 5);
+            addXP(30);
+            closeLogModal();
+            playAudio('success');
+            saveState();
+            updateStatsUI();
+        }
+
+        // --- XP & Leveling Engine ---
+        function addXP(amount) {
+            gameState.xp += amount;
+            if (gameState.xp >= gameState.maxXp) {
+                gameState.level++;
+                gameState.xp -= gameState.maxXp;
+                gameState.maxXp = Math.round(gameState.maxXp * 1.35);
+                triggerLevelUpModal();
+            }
+        }
+
+        function triggerLevelUpModal() {
+            playAudio('success');
+            document.getElementById('levelModalDesc').innerText = `Congratulations! You reached Level ${gameState.level} Hydro Guardian.`;
+            document.getElementById('levelModal').classList.remove('hidden');
+            confetti({ particleCount: 120, spread: 90, origin: { y: 0.4 } });
+        }
+
+        function closeLevelModal() {
+            document.getElementById('levelModal').classList.add('hidden');
+        }
+
+        function updateStatsUI() {
+            document.getElementById('coinCount').innerText = gameState.coins;
+            document.getElementById('totalSavedLiters').innerText = `${gameState.savedLiters}L`;
+            document.getElementById('rankSavedText').innerText = `${gameState.savedLiters} L Saved`;
+            document.getElementById('playerLevelBadge').innerText = `Lv.${gameState.level}`;
+            document.getElementById('xpText').innerText = `${gameState.xp} / ${gameState.maxXp} XP`;
+            document.getElementById('xpBar').style.width = `${Math.min(100, (gameState.xp / gameState.maxXp) * 100)}%`;
+            document.getElementById('todayUsed').innerText = gameState.todayUsed;
+            document.getElementById('treeCount').innerText = `${gameState.trees} Trees`;
+
+            // Boss HP
+            document.getElementById('bossHpText').innerText = `${gameState.bossHp} / ${gameState.maxBossHp} HP`;
+            document.getElementById('bossHpBar').style.width = `${(gameState.bossHp / gameState.maxBossHp) * 100}%`;
+        }
+
+        // Window Load Initialization
+        window.onload = function() {
+            initCanvas();
+            renderCanvas();
+            renderQuests();
+            calculateAuditEngine();
+            updateStatsUI();
+        };
+
+        window.onresize = function() {
+            initCanvas();
+        };
+    </script>
+</body>
+</html>
